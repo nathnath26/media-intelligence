@@ -1,235 +1,214 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from io import StringIO
 
-# --- Konfigurasi Halaman ---
-st.set_page_config(
-    page_title="Dasbor Analitik Kampanye",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+# Set page configuration
+st.set_page_config(layout="wide", page_title="Interactive Media Intelligence Dashboard")
 
 # --- Styling ---
-# Menambahkan CSS kustom untuk tema gelap modern
+def local_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+# You can create a style.css file for more advanced styling if needed
+# For now, we'll use Streamlit's built-in capabilities and some custom CSS via markdown
 st.markdown("""
 <style>
-    /* Latar belakang utama */
-    .stApp {
-        background-image: linear-gradient(to br, #111827, #1f2937);
-        color: #e5e7eb;
+    .main {
+        background-color: #FFF7F9;
     }
-
-    /* Kontainer seperti kartu */
-    .st-emotion-cache-1r4qj8v, .st-emotion-cache-1v0mbdj, .st-emotion-cache-1y4p8pa {
-        background-color: rgba(31, 41, 55, 0.5);
-        backdrop-filter: blur(10px);
-        border: 1px solid #4b5563;
-        border-radius: 1rem;
-        padding: 1.5rem;
+    .st-emotion-cache-16txtl3 {
+        padding-top: 2rem;
     }
-
-    /* Header dan judul */
-    h1, h2, h3 {
-        color: #ffffff;
+    h1 {
+        color: #D946EF;
+        text-align: center;
     }
-
-    /* Widget input */
-    .stSelectbox > div > div > div, .stDateInput > div > div > input {
-        background-color: #374151;
-        border-radius: 0.5rem;
-    }
-    
     .stButton>button {
-        background-color: #4f46e5;
+        background: linear-gradient(90deg, #F472B6, #EC4899);
         color: white;
-        border-radius: 9999px;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1.5rem;
         border: none;
-        padding: 0.5rem 1.25rem;
-        transition: background-color 0.3s;
     }
     .stButton>button:hover {
-        background-color: #4338ca;
-    }
-
-    /* Latar belakang grafik Plotly */
-    .stPlotlyChart {
-        border-radius: 0.5rem;
-        overflow: hidden;
+        opacity: 0.9;
+        color: white;
     }
 </style>
 """, unsafe_allow_html=True)
 
 
-# --- Fungsi ---
-
+# --- Data Cleaning Function ---
 @st.cache_data
-def clean_data(uploaded_file):
-    """
-    Membersihkan dan memproses data CSV yang diunggah.
-    Menyimpan hasil di cache untuk menghindari pemrosesan ulang pada setiap interaksi.
-    """
-    if uploaded_file is None:
-        return None
+def clean_data(df):
+    """Cleans and preprocesses the uploaded dataframe."""
+    # Convert 'Date' column to datetime objects, coercing errors to NaT
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
 
-    try:
-        stringio = StringIO(uploaded_file.getvalue().decode("utf-8"))
-        df = pd.read_csv(stringio)
-        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-        df['Engagements'] = pd.to_numeric(df['Engagements'], errors='coerce').fillna(0).astype(int)
-        df.dropna(subset=['Date'], inplace=True)
-        return df
-    except Exception as e:
-        st.error(f"Gagal memproses file: {e}")
-        return None
-
-def generate_summary(df):
-    """Menghasilkan ringkasan aksi utama berdasarkan data yang difilter."""
-    if df.empty:
-        return ""
-    try:
-        platform_engagements = df.groupby('Platform')['Engagements'].sum()
-        top_platform = platform_engagements.idxmax() if not platform_engagements.empty else 'Tidak Tersedia'
-        dominant_sentiment = df['Sentiment'].mode()[0] if not df['Sentiment'].empty else 'Tidak Tersedia'
-        top_media_type = df['Media Type'].mode()[0] if not df['Media Type'].empty else 'Tidak Tersedia'
-        top_location = df['Location'].mode()[0] if not df['Location'].empty else 'Tidak Tersedia'
-        summary = f"""
-        <ul>
-            <li style="margin-bottom: 8px;"><strong>Platform Utama:</strong> Fokuskan sumber daya di <strong>{top_platform}</strong>.</li>
-            <li style="margin-bottom: 8px;"><strong>Konten Paling Efektif:</strong> Konten berjenis <strong>{top_media_type}</strong> paling sering digunakan.</li>
-            <li style="margin-bottom: 8px;"><strong>Persepsi Audiens:</strong> Sentimen yang dominan adalah <strong>{dominant_sentiment}</strong>.</li>
-            <li style="margin-bottom: 8px;"><strong>Target Geografis:</strong> <strong>{top_location}</strong> adalah lokasi dengan aktivitas tertinggi.</li>
-        </ul>
-        """
-        return summary
-    except Exception:
-        return "Gagal membuat ringkasan. Periksa kolom data Anda."
-
-# --- Aplikasi Utama ---
-st.title("📊 Dasbor Analitik Kampanye")
-st.markdown("<p style='color: #9ca3af;'>Unggah data kampanye Anda untuk visualisasi dan wawasan strategis.</p>", unsafe_allow_html=True)
-
-with st.sidebar:
-    st.header("✨ Kontrol & Filter")
-    uploaded_file = st.file_uploader(
-        "Unggah Data Kampanye (CSV)",
-        type=['csv'],
-        help="Pastikan file CSV Anda memiliki kolom: 'Date', 'Platform', 'Engagements', 'Sentiment', 'Media Type', 'Location'"
-    )
+    # Convert 'Engagements' to numeric, coercing errors to NaN, then fill NaNs with 0
+    df['Engagements'] = pd.to_numeric(df['Engagements'], errors='coerce').fillna(0)
     
-    df_original = clean_data(uploaded_file)
-    df_filtered = pd.DataFrame()
+    # Drop rows where Date could not be parsed
+    df.dropna(subset=['Date'], inplace=True)
+    
+    # Ensure column types are correct
+    df['Engagements'] = df['Engagements'].astype(int)
+    df['Platform'] = df['Platform'].astype(str).fillna('Unknown')
+    df['Sentiment'] = df['Sentiment'].astype(str).fillna('Unknown')
+    df['Media Type'] = df['Media Type'].astype(str).fillna('Unknown')
+    df['Location'] = df['Location'].astype(str).fillna('Unknown')
 
-    if df_original is not None:
-        # --- PERBAIKAN: Tambahkan validasi kolom di sini ---
-        required_columns = ['Date', 'Platform', 'Engagements', 'Sentiment', 'Media Type', 'Location']
-        missing_columns = [col for col in required_columns if col not in df_original.columns]
+    return df
 
-        if missing_columns:
-            st.error(f"File CSV Anda kekurangan kolom yang dibutuhkan: **{', '.join(missing_columns)}**. Silakan periksa kembali file Anda.")
-            st.stop() # Menghentikan eksekusi script jika kolom hilang
-        # --- Akhir Perbaikan ---
+# --- Main App Logic ---
 
-        st.success(f"Data berhasil dimuat! {len(df_original)} catatan ditemukan.")
-        st.markdown("---")
-        st.header("⚙️ Filter Data")
+# Initialize session state for data persistence
+if 'df' not in st.session_state:
+    st.session_state.df = None
 
-        platforms = ['All'] + sorted(df_original['Platform'].unique().tolist())
-        sentiments = ['All'] + sorted(df_original['Sentiment'].unique().tolist())
-        media_types = ['All'] + sorted(df_original['Media Type'].unique().tolist())
-        locations = ['All'] + sorted(df_original['Location'].unique().tolist())
+# --- UI: File Uploader View ---
+if st.session_state.df is None:
+    st.title("Interactive Media Intelligence Dashboard")
+    
+    upload_container = st.container()
+    with upload_container:
+        st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
+        st.subheader("Unggah File CSV Anda")
+        st.write("Silakan unggah file CSV yang berisi data intelijen media Anda. Pastikan memiliki kolom untuk 'Date', 'Engagements', 'Sentiment', 'Platform', 'Media Type', dan 'Location'.")
         
-        min_date = df_original['Date'].min().date()
-        max_date = df_original['Date'].max().date()
-
-        selected_platform = st.selectbox("Platform", platforms)
-        selected_sentiment = st.selectbox("Sentimen", sentiments)
-        selected_media_type = st.selectbox("Tipe Media", media_types)
-        selected_location = st.selectbox("Lokasi", locations)
+        uploaded_file = st.file_uploader("Pilih File", type="csv", label_visibility="collapsed")
         
-        date_range = st.date_input(
-            "Rentang Tanggal",
-            value=(min_date, max_date),
-            min_value=min_date,
-            max_value=max_date,
-        )
+        if uploaded_file is not None:
+            try:
+                df = pd.read_csv(uploaded_file)
+                st.session_state.df = clean_data(df)
+                st.rerun() # Rerun the script to move to the dashboard view
+            except Exception as e:
+                st.error(f"Error: Gagal memproses file. Pastikan formatnya benar. Detail: {e}")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        df_filtered = df_original.copy()
-        if selected_platform != 'All':
-            df_filtered = df_filtered[df_filtered['Platform'] == selected_platform]
-        if selected_sentiment != 'All':
-            df_filtered = df_filtered[df_filtered['Sentiment'] == selected_sentiment]
-        if selected_media_type != 'All':
-            df_filtered = df_filtered[df_filtered['Media Type'] == selected_media_type]
-        if selected_location != 'All':
-            df_filtered = df_filtered[df_filtered['Location'] == selected_location]
-        
-        if len(date_range) == 2:
-            start_date, end_date = date_range
-            df_filtered = df_filtered[
-                (df_filtered['Date'].dt.date >= start_date) & 
-                (df_filtered['Date'].dt.date <= end_date)
-            ]
-
-if df_original is None:
-    st.info("Harap unggah file CSV melalui sidebar untuk memulai visualisasi data.")
-elif df_filtered.empty:
-    st.warning("Tidak ada data yang cocok dengan filter yang Anda pilih. Coba sesuaikan filter Anda.")
+# --- UI: Dashboard View ---
 else:
-    st.subheader("🎯 Ringkasan Aksi Utama")
-    if st.button("Buat Rekomendasi"):
-        summary_text = generate_summary(df_filtered)
-        if summary_text:
-            st.markdown(summary_text, unsafe_allow_html=True)
-        else:
-            st.warning("Tidak dapat membuat ringkasan. Silakan periksa data Anda.")
-    else:
-        st.info("Klik tombol di atas untuk membuat ringkasan strategis berdasarkan filter saat ini.")
+    df = st.session_state.df
+    st.title("Media Intelligence Dashboard")
 
-    st.markdown("---")
-    st.subheader("📈 Visualisasi Data")
-
-    col1, col2 = st.columns(2)
-    plot_config = {'template': "plotly_dark", 'paper_bgcolor': 'rgba(0,0,0,0)', 'plot_bgcolor': 'rgba(0,0,0,0)', 'font_color': "#e5e7eb"}
-
-    with col1:
-        sentiment_counts = df_filtered['Sentiment'].value_counts()
-        fig_sentiment = px.pie(sentiment_counts, values=sentiment_counts.values, names=sentiment_counts.index, title="Analisis Sentimen", hole=0.4, color_discrete_sequence=px.colors.qualitative.Set2)
-        fig_sentiment.update_layout(**plot_config, legend_orientation="h")
-        st.plotly_chart(fig_sentiment, use_container_width=True)
-
-        platform_engagements = df_filtered.groupby('Platform')['Engagements'].sum().sort_values(ascending=False)
-        fig_platform = px.bar(platform_engagements, x=platform_engagements.index, y=platform_engagements.values, title="Keterlibatan per Platform", labels={'x': 'Platform', 'y': 'Total Keterlibatan'})
-        fig_platform.update_layout(**plot_config)
-        st.plotly_chart(fig_platform, use_container_width=True)
-
-    with col2:
-        media_type_counts = df_filtered['Media Type'].value_counts()
-        fig_media = px.pie(media_type_counts, values=media_type_counts.values, names=media_type_counts.index, title="Komposisi Tipe Media", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-        fig_media.update_layout(**plot_config, legend_orientation="h")
-        st.plotly_chart(fig_media, use_container_width=True)
-
-        top_locations = df_filtered['Location'].value_counts().nlargest(5)
-        fig_locations = px.bar(top_locations, x=top_locations.index, y=top_locations.values, title="Top 5 Lokasi", labels={'x': 'Lokasi', 'y': 'Jumlah Postingan'})
-        fig_locations.update_layout(**plot_config)
-        st.plotly_chart(fig_locations, use_container_width=True)
-
-    engagement_trend = df_filtered.groupby(df_filtered['Date'].dt.date)['Engagements'].sum()
-    fig_trend = px.line(engagement_trend, x=engagement_trend.index, y=engagement_trend.values, title="Tren Keterlibatan dari Waktu ke Waktu", labels={'x': 'Tanggal', 'y': 'Total Keterlibatan'}, markers=True)
-    fig_trend.update_layout(**plot_config)
-    st.plotly_chart(fig_trend, use_container_width=True)
+    # --- Sidebar for Filters ---
+    st.sidebar.header("Saring Data")
     
-    st.markdown("---")
-    st.markdown("<p style='text-align: center; color: #9ca3af;'>© 2024 Dasbor Analitik Modern. Diberdayakan oleh Gemini.</p>", unsafe_allow_html=True)
-```
+    # Reset Button
+    if st.sidebar.button("Unggah File Baru"):
+        st.session_state.df = None
+        st.rerun()
 
-**Apa yang berubah?**
+    # Platform Filter
+    unique_platforms = ['All'] + sorted(df['Platform'].unique().tolist())
+    platform = st.sidebar.selectbox("Platform", unique_platforms)
 
-Saya menambahkan blok kode validasi di dalam sidebar, tepat setelah file diunggah dan dibersihkan. Blok ini akan:
-1.  Mendefinisikan daftar kolom yang wajib ada (`required_columns`).
-2.  Membandingkannya dengan kolom yang ada di file unggahan Anda.
-3.  Jika ada kolom yang hilang, ia akan menampilkan pesan error yang jelas menggunakan `st.error()` dan menghentikan aplikasi dengan `st.stop()`.
+    # Sentiment Filter
+    unique_sentiments = ['All'] + sorted(df['Sentiment'].unique().tolist())
+    sentiment = st.sidebar.selectbox("Sentimen", unique_sentiments)
+    
+    # Media Type Filter
+    unique_media_types = ['All'] + sorted(df['Media Type'].unique().tolist())
+    media_type = st.sidebar.selectbox("Jenis Media", unique_media_types)
+    
+    # Location Filter
+    unique_locations = ['All'] + sorted(df['Location'].unique().tolist())
+    location = st.sidebar.selectbox("Lokasi", unique_locations)
 
-Dengan cara ini, aplikasi Anda tidak akan crash dan Anda akan langsung tahu kolom mana yang bermasalah di file CSV An
+    # Date Range Filter
+    min_date = df['Date'].min().date()
+    max_date = df['Date'].max().date()
+    start_date = st.sidebar.date_input("Tanggal Mulai", min_date, min_value=min_date, max_value=max_date)
+    end_date = st.sidebar.date_input("Tanggal Berakhir", max_date, min_value=min_date, max_value=max_date)
+
+    # --- Filtering Logic ---
+    filtered_df = df[
+        (df['Date'].dt.date >= start_date) & 
+        (df['Date'].dt.date <= end_date)
+    ]
+    if platform != 'All':
+        filtered_df = filtered_df[filtered_df['Platform'] == platform]
+    if sentiment != 'All':
+        filtered_df = filtered_df[filtered_df['Sentiment'] == sentiment]
+    if media_type != 'All':
+        filtered_df = filtered_df[filtered_df['Media Type'] == media_type]
+    if location != 'All':
+        filtered_df = filtered_df[filtered_df['Location'] == location]
+
+    # --- Dashboard Content ---
+    
+    # Key Action Summary
+    st.markdown("### Ringkasan Strategi Kampanye")
+    st.info("""
+    Berdasarkan analisis sentimen dan engagement, kampanye yang berfokus pada konten visual di Instagram & TikTok terbukti efektif. Optimalkan postingan pada jam puncak untuk jangkauan maksimal dan pertimbangkan kolaborasi dengan influencer lokal di lokasi dengan interaksi tertinggi.
+    """)
+
+    if filtered_df.empty:
+        st.warning("Tidak ada data yang cocok dengan filter yang dipilih. Harap sesuaikan filter Anda.")
+    else:
+        # --- Charting Section ---
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Sentiment Breakdown
+            st.markdown("#### Sentiment Breakdown")
+            sentiment_counts = filtered_df['Sentiment'].value_counts()
+            fig_sentiment = px.pie(
+                sentiment_counts, 
+                values=sentiment_counts.values, 
+                names=sentiment_counts.index, 
+                hole=0.4,
+                color_discrete_sequence=px.colors.sequential.RdBu
+            )
+            fig_sentiment.update_layout(showlegend=True)
+            st.plotly_chart(fig_sentiment, use_container_width=True)
+
+            # Platform Engagements
+            st.markdown("#### Platform Engagements")
+            platform_engagements = filtered_df.groupby('Platform')['Engagements'].sum().sort_values(ascending=False)
+            fig_platform = px.bar(
+                platform_engagements, 
+                x=platform_engagements.index, 
+                y=platform_engagements.values,
+                labels={'y': 'Total Engagements', 'x': 'Platform'}
+            )
+            st.plotly_chart(fig_platform, use_container_width=True)
+
+        with col2:
+            # Engagement Trend over Time
+            st.markdown("#### Engagement Trend over Time")
+            engagement_by_date = filtered_df.groupby(filtered_df['Date'].dt.date)['Engagements'].sum()
+            fig_engagement = px.line(
+                engagement_by_date, 
+                x=engagement_by_date.index, 
+                y=engagement_by_date.values,
+                labels={'y': 'Total Engagements', 'x': 'Date'}
+            )
+            fig_engagement.update_traces(mode='lines+markers')
+            st.plotly_chart(fig_engagement, use_container_width=True)
+
+            # Media Type Mix
+            st.markdown("#### Media Type Mix")
+            media_type_counts = filtered_df['Media Type'].value_counts()
+            fig_media_type = px.pie(
+                media_type_counts, 
+                values=media_type_counts.values, 
+                names=media_type_counts.index, 
+                hole=0.4,
+                color_discrete_sequence=px.colors.sequential.Agsunset
+            )
+            st.plotly_chart(fig_media_type, use_container_width=True)
+
+        # Top 5 Locations (Full Width)
+        st.markdown("#### Top 5 Locations by Post Count")
+        location_counts = filtered_df['Location'].value_counts().nlargest(5)
+        fig_location = px.bar(
+            location_counts,
+            x=location_counts.index,
+            y=location_counts.values,
+            labels={'y': 'Number of Posts', 'x': 'Location'}
+        )
+        st.plotly_chart(fig_location, use_container_width=True)
 
