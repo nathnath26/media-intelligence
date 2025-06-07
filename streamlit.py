@@ -74,18 +74,12 @@ def clean_data(uploaded_file):
         return None
 
     try:
-        # Untuk membaca file dari unggahan
         stringio = StringIO(uploaded_file.getvalue().decode("utf-8"))
         df = pd.read_csv(stringio)
-
-        # Pembersihan Data
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
         df['Engagements'] = pd.to_numeric(df['Engagements'], errors='coerce').fillna(0).astype(int)
-
-        # Hapus baris di mana Tanggal menjadi NaT setelah konversi
         df.dropna(subset=['Date'], inplace=True)
         return df
-
     except Exception as e:
         st.error(f"Gagal memproses file: {e}")
         return None
@@ -94,27 +88,18 @@ def generate_summary(df):
     """Menghasilkan ringkasan aksi utama berdasarkan data yang difilter."""
     if df.empty:
         return ""
-
     try:
-        # 1. Platform teratas berdasarkan keterlibatan
         platform_engagements = df.groupby('Platform')['Engagements'].sum()
         top_platform = platform_engagements.idxmax() if not platform_engagements.empty else 'Tidak Tersedia'
-
-        # 2. Sentimen dominan
         dominant_sentiment = df['Sentiment'].mode()[0] if not df['Sentiment'].empty else 'Tidak Tersedia'
-
-        # 3. Tipe media yang paling sering digunakan
         top_media_type = df['Media Type'].mode()[0] if not df['Media Type'].empty else 'Tidak Tersedia'
-
-        # 4. Lokasi teratas berdasarkan jumlah postingan
         top_location = df['Location'].mode()[0] if not df['Location'].empty else 'Tidak Tersedia'
-
         summary = f"""
         <ul>
-            <li style="margin-bottom: 8px;"><strong>Platform Utama:</strong> Fokuskan sumber daya di <strong>{top_platform}</strong>, karena platform ini menghasilkan keterlibatan tertinggi.</li>
-            <li style="margin-bottom: 8px;"><strong>Konten Paling Efektif:</strong> Konten berjenis <strong>{top_media_type}</strong> paling sering digunakan. Pertimbangkan untuk meningkatkan produksi konten ini.</li>
-            <li style="margin-bottom: 8px;"><strong>Persepsi Audiens:</strong> Sentimen yang dominan adalah <strong>{dominant_sentiment}</strong>. Manfaatkan suasana positif ini, atau jika negatif, selidiki penyebabnya.</li>
-            <li style="margin-bottom: 8px;"><strong>Target Geografis:</strong> <strong>{top_location}</strong> adalah lokasi dengan aktivitas tertinggi. Pertimbangkan untuk membuat kampanye yang dilokalkan untuk area ini.</li>
+            <li style="margin-bottom: 8px;"><strong>Platform Utama:</strong> Fokuskan sumber daya di <strong>{top_platform}</strong>.</li>
+            <li style="margin-bottom: 8px;"><strong>Konten Paling Efektif:</strong> Konten berjenis <strong>{top_media_type}</strong> paling sering digunakan.</li>
+            <li style="margin-bottom: 8px;"><strong>Persepsi Audiens:</strong> Sentimen yang dominan adalah <strong>{dominant_sentiment}</strong>.</li>
+            <li style="margin-bottom: 8px;"><strong>Target Geografis:</strong> <strong>{top_location}</strong> adalah lokasi dengan aktivitas tertinggi.</li>
         </ul>
         """
         return summary
@@ -122,15 +107,11 @@ def generate_summary(df):
         return "Gagal membuat ringkasan. Periksa kolom data Anda."
 
 # --- Aplikasi Utama ---
-
 st.title("📊 Dasbor Analitik Kampanye")
 st.markdown("<p style='color: #9ca3af;'>Unggah data kampanye Anda untuk visualisasi dan wawasan strategis.</p>", unsafe_allow_html=True)
 
-
-# --- Sidebar untuk Filter dan Unggah ---
 with st.sidebar:
     st.header("✨ Kontrol & Filter")
-    
     uploaded_file = st.file_uploader(
         "Unggah Data Kampanye (CSV)",
         type=['csv'],
@@ -141,6 +122,15 @@ with st.sidebar:
     df_filtered = pd.DataFrame()
 
     if df_original is not None:
+        # --- PERBAIKAN: Tambahkan validasi kolom di sini ---
+        required_columns = ['Date', 'Platform', 'Engagements', 'Sentiment', 'Media Type', 'Location']
+        missing_columns = [col for col in required_columns if col not in df_original.columns]
+
+        if missing_columns:
+            st.error(f"File CSV Anda kekurangan kolom yang dibutuhkan: **{', '.join(missing_columns)}**. Silakan periksa kembali file Anda.")
+            st.stop() # Menghentikan eksekusi script jika kolom hilang
+        # --- Akhir Perbaikan ---
+
         st.success(f"Data berhasil dimuat! {len(df_original)} catatan ditemukan.")
         st.markdown("---")
         st.header("⚙️ Filter Data")
@@ -182,13 +172,11 @@ with st.sidebar:
                 (df_filtered['Date'].dt.date <= end_date)
             ]
 
-# --- Area Dasbor Utama ---
 if df_original is None:
     st.info("Harap unggah file CSV melalui sidebar untuk memulai visualisasi data.")
 elif df_filtered.empty:
     st.warning("Tidak ada data yang cocok dengan filter yang Anda pilih. Coba sesuaikan filter Anda.")
 else:
-    # --- Ringkasan Aksi Utama ---
     st.subheader("🎯 Ringkasan Aksi Utama")
     if st.button("Buat Rekomendasi"):
         summary_text = generate_summary(df_filtered)
@@ -203,13 +191,7 @@ else:
     st.subheader("📈 Visualisasi Data")
 
     col1, col2 = st.columns(2)
-
-    plot_config = {
-        'template': "plotly_dark",
-        'paper_bgcolor': 'rgba(0,0,0,0)',
-        'plot_bgcolor': 'rgba(0,0,0,0)',
-        'font_color': "#e5e7eb"
-    }
+    plot_config = {'template': "plotly_dark", 'paper_bgcolor': 'rgba(0,0,0,0)', 'plot_bgcolor': 'rgba(0,0,0,0)', 'font_color': "#e5e7eb"}
 
     with col1:
         sentiment_counts = df_filtered['Sentiment'].value_counts()
@@ -238,7 +220,16 @@ else:
     fig_trend.update_layout(**plot_config)
     st.plotly_chart(fig_trend, use_container_width=True)
     
-    # --- Footer ---
     st.markdown("---")
     st.markdown("<p style='text-align: center; color: #9ca3af;'>© 2024 Dasbor Analitik Modern. Diberdayakan oleh Gemini.</p>", unsafe_allow_html=True)
+```
+
+**Apa yang berubah?**
+
+Saya menambahkan blok kode validasi di dalam sidebar, tepat setelah file diunggah dan dibersihkan. Blok ini akan:
+1.  Mendefinisikan daftar kolom yang wajib ada (`required_columns`).
+2.  Membandingkannya dengan kolom yang ada di file unggahan Anda.
+3.  Jika ada kolom yang hilang, ia akan menampilkan pesan error yang jelas menggunakan `st.error()` dan menghentikan aplikasi dengan `st.stop()`.
+
+Dengan cara ini, aplikasi Anda tidak akan crash dan Anda akan langsung tahu kolom mana yang bermasalah di file CSV An
 
