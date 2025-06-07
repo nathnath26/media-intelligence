@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 from io import StringIO
 
-# --- Page Configuration ---
+# --- Konfigurasi Halaman ---
 st.set_page_config(
     page_title="Dasbor Analitik Kampanye",
     page_icon="📊",
@@ -12,34 +12,48 @@ st.set_page_config(
 )
 
 # --- Styling ---
-# Inject custom CSS for a modern dark theme
+# Menambahkan CSS kustom untuk tema gelap modern
 st.markdown("""
 <style>
-    /* Main background */
+    /* Latar belakang utama */
     .stApp {
-        background-image: linear-gradient(to br, #1a202c, #2d3748);
+        background-image: linear-gradient(to br, #111827, #1f2937);
+        color: #e5e7eb;
     }
 
-    /* Card-like containers */
-    .st-emotion-cache-1r4qj8v, .st-emotion-cache-1v0mbdj {
-        background-color: rgba(45, 55, 72, 0.5);
+    /* Kontainer seperti kartu */
+    .st-emotion-cache-1r4qj8v, .st-emotion-cache-1v0mbdj, .st-emotion-cache-1y4p8pa {
+        background-color: rgba(31, 41, 55, 0.5);
         backdrop-filter: blur(10px);
-        border: 1px solid #4A5568;
+        border: 1px solid #4b5563;
         border-radius: 1rem;
         padding: 1.5rem;
     }
 
-    /* Headers and titles */
+    /* Header dan judul */
     h1, h2, h3 {
-        color: #E2E8F0;
+        color: #ffffff;
     }
 
-    /* Input widgets */
-    .stSelectbox > div > div > div {
-        background-color: #2D3748;
+    /* Widget input */
+    .stSelectbox > div > div > div, .stDateInput > div > div > input {
+        background-color: #374151;
+        border-radius: 0.5rem;
+    }
+    
+    .stButton>button {
+        background-color: #4f46e5;
+        color: white;
+        border-radius: 9999px;
+        border: none;
+        padding: 0.5rem 1.25rem;
+        transition: background-color 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #4338ca;
     }
 
-    /* Plotly chart background */
+    /* Latar belakang grafik Plotly */
     .stPlotlyChart {
         border-radius: 0.5rem;
         overflow: hidden;
@@ -48,27 +62,27 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- Functions ---
+# --- Fungsi ---
 
 @st.cache_data
 def clean_data(uploaded_file):
     """
-    Cleans and preprocesses the uploaded CSV data.
-    Caches the result to avoid reprocessing on every interaction.
+    Membersihkan dan memproses data CSV yang diunggah.
+    Menyimpan hasil di cache untuk menghindari pemrosesan ulang pada setiap interaksi.
     """
     if uploaded_file is None:
         return None
 
     try:
-        # To read file from upload
+        # Untuk membaca file dari unggahan
         stringio = StringIO(uploaded_file.getvalue().decode("utf-8"))
         df = pd.read_csv(stringio)
 
-        # Data Cleaning
+        # Pembersihan Data
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
         df['Engagements'] = pd.to_numeric(df['Engagements'], errors='coerce').fillna(0).astype(int)
 
-        # Drop rows where Date is NaT after coercion
+        # Hapus baris di mana Tanggal menjadi NaT setelah konversi
         df.dropna(subset=['Date'], inplace=True)
         return df
 
@@ -77,39 +91,43 @@ def clean_data(uploaded_file):
         return None
 
 def generate_summary(df):
-    """Generates a key action summary based on the filtered data."""
+    """Menghasilkan ringkasan aksi utama berdasarkan data yang difilter."""
     if df.empty:
-        return "Tidak ada data untuk diringkas. Sesuaikan filter Anda."
+        return ""
 
-    # 1. Top platform by engagement
-    top_platform = df.groupby('Platform')['Engagements'].sum().idxmax()
+    try:
+        # 1. Platform teratas berdasarkan keterlibatan
+        platform_engagements = df.groupby('Platform')['Engagements'].sum()
+        top_platform = platform_engagements.idxmax() if not platform_engagements.empty else 'Tidak Tersedia'
 
-    # 2. Dominant sentiment
-    dominant_sentiment = df['Sentiment'].mode()[0] if not df['Sentiment'].empty else 'Tidak Diketahui'
+        # 2. Sentimen dominan
+        dominant_sentiment = df['Sentiment'].mode()[0] if not df['Sentiment'].empty else 'Tidak Tersedia'
 
-    # 3. Most used media type
-    top_media_type = df['Media Type'].mode()[0] if not df['Media Type'].empty else 'Tidak Diketahui'
+        # 3. Tipe media yang paling sering digunakan
+        top_media_type = df['Media Type'].mode()[0] if not df['Media Type'].empty else 'Tidak Tersedia'
 
-    # 4. Top location by post count
-    top_location = df['Location'].mode()[0] if not df['Location'].empty else 'Tidak Diketahui'
+        # 4. Lokasi teratas berdasarkan jumlah postingan
+        top_location = df['Location'].mode()[0] if not df['Location'].empty else 'Tidak Tersedia'
 
-    summary = f"""
-    <ul>
-        <li style="margin-bottom: 8px;"><strong>Platform Utama:</strong> Fokuskan sumber daya di <strong>{top_platform}</strong>, karena platform ini menghasilkan keterlibatan tertinggi.</li>
-        <li style="margin-bottom: 8px;"><strong>Konten Paling Efektif:</strong> Konten berjenis <strong>{top_media_type}</strong> paling sering digunakan. Pertimbangkan untuk meningkatkan produksi konten ini.</li>
-        <li style="margin-bottom: 8px;"><strong>Persepsi Audiens:</strong> Sentimen yang dominan adalah <strong>{dominant_sentiment}</strong>. Manfaatkan suasana positif ini, atau jika negatif, selidiki penyebabnya.</li>
-        <li style="margin-bottom: 8px;"><strong>Target Geografis:</strong> <strong>{top_location}</strong> adalah lokasi dengan aktivitas tertinggi. Pertimbangkan untuk membuat kampanye yang dilokalkan untuk area ini.</li>
-    </ul>
-    """
-    return summary
+        summary = f"""
+        <ul>
+            <li style="margin-bottom: 8px;"><strong>Platform Utama:</strong> Fokuskan sumber daya di <strong>{top_platform}</strong>, karena platform ini menghasilkan keterlibatan tertinggi.</li>
+            <li style="margin-bottom: 8px;"><strong>Konten Paling Efektif:</strong> Konten berjenis <strong>{top_media_type}</strong> paling sering digunakan. Pertimbangkan untuk meningkatkan produksi konten ini.</li>
+            <li style="margin-bottom: 8px;"><strong>Persepsi Audiens:</strong> Sentimen yang dominan adalah <strong>{dominant_sentiment}</strong>. Manfaatkan suasana positif ini, atau jika negatif, selidiki penyebabnya.</li>
+            <li style="margin-bottom: 8px;"><strong>Target Geografis:</strong> <strong>{top_location}</strong> adalah lokasi dengan aktivitas tertinggi. Pertimbangkan untuk membuat kampanye yang dilokalkan untuk area ini.</li>
+        </ul>
+        """
+        return summary
+    except Exception:
+        return "Gagal membuat ringkasan. Periksa kolom data Anda."
 
-# --- Main App ---
+# --- Aplikasi Utama ---
 
 st.title("📊 Dasbor Analitik Kampanye")
-st.markdown("<p style='color: #A0AEC0;'>Unggah data kampanye Anda untuk visualisasi dan wawasan strategis.</p>", unsafe_allow_html=True)
+st.markdown("<p style='color: #9ca3af;'>Unggah data kampanye Anda untuk visualisasi dan wawasan strategis.</p>", unsafe_allow_html=True)
 
 
-# --- Sidebar for Filters and Upload ---
+# --- Sidebar untuk Filter dan Unggah ---
 with st.sidebar:
     st.header("✨ Kontrol & Filter")
     
@@ -118,26 +136,23 @@ with st.sidebar:
         type=['csv'],
         help="Pastikan file CSV Anda memiliki kolom: 'Date', 'Platform', 'Engagements', 'Sentiment', 'Media Type', 'Location'"
     )
-
-    df = clean_data(uploaded_file)
     
-    if df is not None:
-        st.success(f"Data berhasil dimuat! {len(df)} catatan ditemukan.")
-        
+    df_original = clean_data(uploaded_file)
+    df_filtered = pd.DataFrame()
+
+    if df_original is not None:
+        st.success(f"Data berhasil dimuat! {len(df_original)} catatan ditemukan.")
         st.markdown("---")
         st.header("⚙️ Filter Data")
 
-        # Get unique values for filters
-        platforms = ['All'] + sorted(df['Platform'].unique().tolist())
-        sentiments = ['All'] + sorted(df['Sentiment'].unique().tolist())
-        media_types = ['All'] + sorted(df['Media Type'].unique().tolist())
-        locations = ['All'] + sorted(df['Location'].unique().tolist())
+        platforms = ['All'] + sorted(df_original['Platform'].unique().tolist())
+        sentiments = ['All'] + sorted(df_original['Sentiment'].unique().tolist())
+        media_types = ['All'] + sorted(df_original['Media Type'].unique().tolist())
+        locations = ['All'] + sorted(df_original['Location'].unique().tolist())
         
-        # Date range
-        min_date = df['Date'].min().date()
-        max_date = df['Date'].max().date()
+        min_date = df_original['Date'].min().date()
+        max_date = df_original['Date'].max().date()
 
-        # Filter widgets
         selected_platform = st.selectbox("Platform", platforms)
         selected_sentiment = st.selectbox("Sentimen", sentiments)
         selected_media_type = st.selectbox("Tipe Media", media_types)
@@ -150,8 +165,7 @@ with st.sidebar:
             max_value=max_date,
         )
 
-        # Apply filters
-        df_filtered = df.copy()
+        df_filtered = df_original.copy()
         if selected_platform != 'All':
             df_filtered = df_filtered[df_filtered['Platform'] == selected_platform]
         if selected_sentiment != 'All':
@@ -161,7 +175,6 @@ with st.sidebar:
         if selected_location != 'All':
             df_filtered = df_filtered[df_filtered['Location'] == selected_location]
         
-        # Date range filtering
         if len(date_range) == 2:
             start_date, end_date = date_range
             df_filtered = df_filtered[
@@ -169,117 +182,63 @@ with st.sidebar:
                 (df_filtered['Date'].dt.date <= end_date)
             ]
 
-
-# --- Main Dashboard Area ---
-if df is None:
+# --- Area Dasbor Utama ---
+if df_original is None:
     st.info("Harap unggah file CSV melalui sidebar untuk memulai visualisasi data.")
+elif df_filtered.empty:
+    st.warning("Tidak ada data yang cocok dengan filter yang Anda pilih. Coba sesuaikan filter Anda.")
 else:
-    # --- Key Action Summary ---
+    # --- Ringkasan Aksi Utama ---
     st.subheader("🎯 Ringkasan Aksi Utama")
-    summary_text = generate_summary(df_filtered)
-    st.markdown(summary_text, unsafe_allow_html=True)
+    if st.button("Buat Rekomendasi"):
+        summary_text = generate_summary(df_filtered)
+        if summary_text:
+            st.markdown(summary_text, unsafe_allow_html=True)
+        else:
+            st.warning("Tidak dapat membuat ringkasan. Silakan periksa data Anda.")
+    else:
+        st.info("Klik tombol di atas untuk membuat ringkasan strategis berdasarkan filter saat ini.")
+
     st.markdown("---")
-
-
-    # --- Visualizations ---
     st.subheader("📈 Visualisasi Data")
 
     col1, col2 = st.columns(2)
 
+    plot_config = {
+        'template': "plotly_dark",
+        'paper_bgcolor': 'rgba(0,0,0,0)',
+        'plot_bgcolor': 'rgba(0,0,0,0)',
+        'font_color': "#e5e7eb"
+    }
+
     with col1:
-        # Sentiment Breakdown
         sentiment_counts = df_filtered['Sentiment'].value_counts()
-        fig_sentiment = px.pie(
-            sentiment_counts,
-            values=sentiment_counts.values,
-            names=sentiment_counts.index,
-            title="Analisis Sentimen",
-            hole=0.4,
-            color_discrete_sequence=px.colors.qualitative.Plotly
-        )
-        fig_sentiment.update_layout(
-            template="plotly_dark",
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            legend_orientation="h",
-            font_color="#E2E8F0"
-        )
+        fig_sentiment = px.pie(sentiment_counts, values=sentiment_counts.values, names=sentiment_counts.index, title="Analisis Sentimen", hole=0.4, color_discrete_sequence=px.colors.qualitative.Set2)
+        fig_sentiment.update_layout(**plot_config, legend_orientation="h")
         st.plotly_chart(fig_sentiment, use_container_width=True)
 
-        # Platform Engagements
         platform_engagements = df_filtered.groupby('Platform')['Engagements'].sum().sort_values(ascending=False)
-        fig_platform = px.bar(
-            platform_engagements,
-            x=platform_engagements.index,
-            y=platform_engagements.values,
-            title="Keterlibatan per Platform",
-            labels={'x': 'Platform', 'y': 'Total Keterlibatan'}
-        )
-        fig_platform.update_layout(
-            template="plotly_dark",
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font_color="#E2E8F0"
-        )
+        fig_platform = px.bar(platform_engagements, x=platform_engagements.index, y=platform_engagements.values, title="Keterlibatan per Platform", labels={'x': 'Platform', 'y': 'Total Keterlibatan'})
+        fig_platform.update_layout(**plot_config)
         st.plotly_chart(fig_platform, use_container_width=True)
 
-
     with col2:
-        # Media Type Mix
         media_type_counts = df_filtered['Media Type'].value_counts()
-        fig_media = px.pie(
-            media_type_counts,
-            values=media_type_counts.values,
-            names=media_type_counts.index,
-            title="Komposisi Tipe Media",
-            hole=0.4,
-            color_discrete_sequence=px.colors.qualitative.Pastel
-        )
-        fig_media.update_layout(
-            template="plotly_dark",
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            legend_orientation="h",
-            font_color="#E2E8F0"
-        )
+        fig_media = px.pie(media_type_counts, values=media_type_counts.values, names=media_type_counts.index, title="Komposisi Tipe Media", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig_media.update_layout(**plot_config, legend_orientation="h")
         st.plotly_chart(fig_media, use_container_width=True)
 
-
-        # Top 5 Locations
         top_locations = df_filtered['Location'].value_counts().nlargest(5)
-        fig_locations = px.bar(
-            top_locations,
-            x=top_locations.index,
-            y=top_locations.values,
-            title="Top 5 Lokasi",
-            labels={'x': 'Lokasi', 'y': 'Jumlah Postingan'}
-        )
-        fig_locations.update_layout(
-            template="plotly_dark",
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font_color="#E2E8F0"
-        )
+        fig_locations = px.bar(top_locations, x=top_locations.index, y=top_locations.values, title="Top 5 Lokasi", labels={'x': 'Lokasi', 'y': 'Jumlah Postingan'})
+        fig_locations.update_layout(**plot_config)
         st.plotly_chart(fig_locations, use_container_width=True)
 
-    # Engagement Trend over Time
     engagement_trend = df_filtered.groupby(df_filtered['Date'].dt.date)['Engagements'].sum()
-    fig_trend = px.line(
-        engagement_trend,
-        x=engagement_trend.index,
-        y=engagement_trend.values,
-        title="Tren Keterlibatan dari Waktu ke Waktu",
-        labels={'x': 'Tanggal', 'y': 'Total Keterlibatan'},
-        markers=True
-    )
-    fig_trend.update_layout(
-        template="plotly_dark",
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font_color="#E2E8F0"
-    )
+    fig_trend = px.line(engagement_trend, x=engagement_trend.index, y=engagement_trend.values, title="Tren Keterlibatan dari Waktu ke Waktu", labels={'x': 'Tanggal', 'y': 'Total Keterlibatan'}, markers=True)
+    fig_trend.update_layout(**plot_config)
     st.plotly_chart(fig_trend, use_container_width=True)
     
     # --- Footer ---
     st.markdown("---")
-    st.markdown("<p style='text-align: center; color: #A0AEC0;'>© 2024 Dasbor Analitik Modern. Diberdayakan oleh Gemini.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #9ca3af;'>© 2024 Dasbor Analitik Modern. Diberdayakan oleh Gemini.</p>", unsafe_allow_html=True)
+
